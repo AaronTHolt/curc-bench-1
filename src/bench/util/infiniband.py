@@ -28,16 +28,6 @@ def get_topology (topology_file):
     return dict(parse_topology_conf(topology_file))
 
 
-def read_info_file(in_file):
-    node_list = []
-    line = in_file.readline()
-    while line:
-        if line.startswith('node'):
-            node_list.append(line.strip())
-        line = in_file.readline()
-    return node_list
-
-
 def get_rack_nodes(nodes):
     rack_nodes = collections.defaultdict(set)
     for node in nodes:
@@ -57,8 +47,8 @@ def get_switch_nodes(nodes, topology):
 
 def get_switch_node_pairs(nodes, topology):
     switch_node_pairs = {}
-    switch_nodes = get_switch_nodes(nodes, topology)
-    for switch_name, switch_nodes in switch_nodes.iteritems():
+    switches = get_switch_nodes(nodes, topology)
+    for switch_name, switch_nodes in switches.iteritems():
         switch_node_pairs.update(get_node_pairs(switch_nodes))
     return switch_node_pairs
 
@@ -67,7 +57,7 @@ def get_node_pairs(nodes):
     data = {}
     for node_pair in bench.util.chunks(sorted(nodes), 2):
         try:
-            key = 'infiniband_{0}_{1}'.format(*list(sorted(node_pair)))
+            key = '{0},{1}'.format(*list(sorted(node_pair)))
         except IndexError:
             # odd-length list might end with a single node
             continue

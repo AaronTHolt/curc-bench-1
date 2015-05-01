@@ -1,24 +1,32 @@
 import argparse
 import bench.add
 import bench.create
+import bench.log
 import bench.process
 import bench.reserve
 import bench.submit
+import bench.update_nodes
 import datetime
 import glob
 import logging
 import os
+import sys
+
+
+logger = logging.getLogger(__name__)
 
 
 def parser():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('-P', '--directory-prefix', dest='prefix')
     parser.add_argument('-d', '--directory', help='directory')
-    parser.set_defaults(prefix='.')
+    parser.set_defaults(prefix='.', verbose=False)
 
     subparsers = parser.add_subparsers(dest='command')
 
-    create = subparsers.add_parser('create', help='Create the benchmark test scripts')
+    create = subparsers.add_parser(
+        'create', help='Create the benchmark test scripts')
     create.add_argument('-N', '--nodes',
                         help = 'explicit list of nodes to test')
     create.add_argument('-x', '--exclude-nodes',
@@ -34,25 +42,31 @@ def parser():
                      help = 'slurm topology.conf')  
 
 
-    submit = subparsers.add_parser('submit', help='Submit all the jobs from create to the scheduler.')
-    submit.add_argument('-d','--directory', help='directory', dest='directory')
-    submit.set_defaults(directory=None)
-    submit.add_argument('-r', '--allrack', help='alltoall rack level', action='store_true')
-    submit.add_argument('-s', '--allswitch', help='alltoall switch level', action='store_true')
-    submit.add_argument('-p', '--allpair', help='alltoall pair level', action='store_true')
-    submit.add_argument('-n', '--nodes', help='nodes', action='store_true')
-    submit.add_argument('-b', '--bandwidth', help='bandwidth', action='store_true')
+    submit = subparsers.add_parser(
+        'submit', help='Submit all the jobs from create to the scheduler.')
+    parser_add_test_arguments(submit)
     submit.add_argument('--pause', type=int, help='number of jobs submitted before pause')
-    submit.add_argument('--res', help='reservation to run in', action='store_true')
-    submit.add_argument('-q', '--qos', help='qos', action='store_true')
-    submit.add_argument('-a', '--account', help='account', action='store_true')
+    submit.add_argument('--reservation', help='reservation to run jobs in')
+    submit.add_argument('-q', '--qos', help='qos to associate with the jobs')
+    submit.add_argument('-a', '--account', help='account to use with the jobs')
     submit.set_defaults(pause=0)
 
-    process = subparsers.add_parser('process', help='Process the test results')
+    process = subparsers.add_parser(
+        'process', help='Process the test results')
     parser_add_test_arguments(process)
 
-    reserve = subparsers.add_parser('reserve', help='Reserve nodes based on processed results')
+    reserve = subparsers.add_parser(
+        'reserve', help='Reserve nodes based on processed results')
     parser_add_test_arguments(reserve)
+    parser.add_argument('--bad-nodes', action='store_true')
+    parser.add_argument('--not-tested', action='store_true')
+
+    update_nodes = subparsers.add_parser(
+        'update-nodes', help='Mark nodes down based on processed results')
+    update_nodes.add_argument('--down',
+                              help='set nodes down (default: drain)', action='store_true')
+    parser_add_test_arguments(update_nodes)
+    update_nodes.set_defaults(down=False)
 
     return parser
 
@@ -105,96 +119,99 @@ def get_directory(prefix, new=False):
         return directory
 
 
-class MyFormatter(logging.Formatter):
-
-    def format(self, record):
-        filename = record.filename.split('.')[0]
-
-        a = "%s %s: %s  " % (datetime.date.today(), filename.rjust(20), str(record.lineno).rjust(4))
-        return "%s %s" % (a, record.msg)
-
-
-def get_logger(directory):
-
-    logger = logging.getLogger('Benchmarks')
-    logger.setLevel(logging.DEBUG)
-
-    # create console handler and set level to debug
-    ch = logging.FileHandler(os.path.join(directory,'bench.log'))
-    ch.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s:   %(message)s', datefmt='%I:%M:%S %p')
-    formatter = MyFormatter()
-    ch.setFormatter(formatter)
-    logger.addHandler(ch)
-
-    sh = logging.StreamHandler()
-    sh.setLevel(logging.INFO)
-    formatter = MyFormatter()
-    sh.setFormatter(formatter)
-    logger.addHandler(sh)
-
-    return logger
-
-
 def driver():
+    bench.log.configure_package_logger()
+
     args = parser().parse_args()
+
+    if args.verbose:
+        bench.log.configure_stderr_logging(level=logging.INFO)
+    else:
+        bench.log.configure_stderr_logging(level=logging.WARNING)
 
     directory = args.directory
     if directory is None:
         if args.command == 'create':
-            directory = get_directory(args.prefix, new=True)
+            try:
+                directory = get_directory(args.prefix, new=True)
+            except (OSError, IOError) as ex:
+                logger.error('unable to create session directory')
+                logger.debug(ex, exc_info=True)
+                sys.exit(-1)
         else:
             directory = get_directory(args.prefix, new=False)
     else:
         if args.command == 'create':
-            os.makedirs(directory)
+            try:
+                os.makedirs(directory)
+            except (OSError, IOError) as ex:
+                logger.error('unable to create session directory')
+                logger.debug(ex, exc_info=True)
+                sys.exit(-1)
 
-    logger = get_logger(directory)
+    bench.log.configure_file_logging(directory)
 
     if args.command == 'create':
-        bench.create.execute(directory,
-                             include_nodes = args.nodes,
-                             include_reservation = args.reservation,
-                             exclude_nodes = args.exclude_nodes,
-                             exclude_reservation = args.exclude_reservation,
+        bench.create.execute(
+            directory,
+            include_nodes = args.nodes,
+            include_reservation = args.reservation,
+            exclude_nodes = args.exclude_nodes,
+            exclude_reservation = args.exclude_reservation,
         )
 
     elif args.command == 'add':
-        bench.add.execute(directory, args.topology_file,
-                          add_alltoall_rack_tests = args.alltoall_rack_tests,
-                          add_alltoall_switch_tests = args.alltoall_switch_tests,
-                          add_alltoall_pair_tests = args.alltoall_pair_tests,
-                          add_bandwidth_tests = args.bandwidth_tests,
-                          add_node_tests = args.node_tests,
+        bench.add.execute(
+            directory, args.topology_file,
+            alltoall_rack_tests = args.alltoall_rack_tests,
+            alltoall_switch_tests = args.alltoall_switch_tests,
+            alltoall_pair_tests = args.alltoall_pair_tests,
+            bandwidth_tests = args.bandwidth_tests,
+            node_tests = args.node_tests,
         )
 
     elif args.command == 'submit':
-        bench.submit.execute(directory,
-                             allrack = args.allrack,
-                             allswitch = args.allswitch,
-                             allpair = args.allpair,
-                             nodes = args.nodes,
-                             bandwidth = args.bandwidth,
-                             pause = args.pause,
-                             reservation = args.res,
-                             qos = args.qos,
-                             account = args.account,
+        bench.submit.execute(
+            directory,
+            alltoall_rack_tests = args.alltoall_rack_tests,
+            alltoall_switch_tests = args.alltoall_switch_tests,
+            alltoall_pair_tests = args.alltoall_pair_tests,
+            node_tests = args.node_tests,
+            bandwidth_tests = args.bandwidth_tests,
+            pause = args.pause,
+            reservation = args.reservation,
+            qos = args.qos,
+            account = args.account,
         )
 
     elif args.command == 'process':
-        bench.process.execute(directory,
-                              alltoall_rack_tests = args.alltoall_rack_tests,
-                              alltoall_switch_tests = args.alltoall_switch_tests,
-                              alltoall_pair_tests = args.alltoall_pair_tests,
-                              node_tests = args.node_tests,
-                              bandwidth_tests = args.bandwidth_tests,
+        bench.process.execute(
+            directory,
+            alltoall_rack_tests = args.alltoall_rack_tests,
+            alltoall_switch_tests = args.alltoall_switch_tests,
+            alltoall_pair_tests = args.alltoall_pair_tests,
+            node_tests = args.node_tests,
+            bandwidth_tests = args.bandwidth_tests,
         )
 
     elif args.command == 'reserve':
-        bench.reserve.execute(directory, 
-                              allrack = args.allrack,
-                              allswitch = args.allswitch,
-                              allpair = args.allpair,
-                              nodes = args.nodes,
-                              bandwidth = args.bandwidth,
+        bench.reserve.execute(
+            directory,
+            alltoall_rack_tests = args.alltoall_rack_tests,
+            alltoall_switch_tests = args.alltoall_switch_tests,
+            alltoall_pair_tests = args.alltoall_pair_tests,
+            node_tests = args.node_tests,
+            bandwidth_tests = args.bandwidth_tests,
+            not_tested = args.not_tested,
+        )
+
+    elif args.command == 'update-nodes':
+        bench.update_nodes.update_nodes(
+            directory,
+            alltoall_rack_tests = args.alltoall_rack_tests,
+            alltoall_switch_tests = args.alltoall_switch_tests,
+            alltoall_pair_tests = args.alltoall_pair_tests,
+            node_tests = args.node_tests,
+            bandwidth_tests = args.bandwidth_tests,
+            down = args.down,
         )

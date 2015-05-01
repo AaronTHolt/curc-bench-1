@@ -1,5 +1,7 @@
 import bench.exc
+import bench.util
 import jinja2
+import logging
 import os
 import pkg_resources
 import re
@@ -17,48 +19,78 @@ STREAM_ADD_P = re.compile(STREAM_P_T.format('Add'), flags=re.MULTILINE)
 STREAM_TRIAD_P = re.compile(STREAM_P_T.format('Triad'), flags=re.MULTILINE)
 
 
+logger = logging.getLogger(__name__)
+
+
 def generate(nodes, prefix):
     for node in nodes:
-        output_file = os.path.join(prefix, '{0}.job'.format(node))
-        with open(output_file, 'w') as fp:
+        test_dir = os.path.join(prefix, node)
+        bench.util.mkdir_p(test_dir)
+
+        script_file = os.path.join(test_dir, '{0}.job'.format(node))
+        with open(script_file, 'w') as fp:
             fp.write(TEMPLATE.render(
+                job_name = 'bench-node-{0}'.format(node),
                 node_name = node,
             ))
+
+        node_list_file = os.path.join(test_dir, 'node_list')
+        bench.util.write_node_list(node_list_file, [node])
 
 
 def process(nodes, prefix):
     bad_nodes = set()
     good_nodes = set()
-    for node in os.listdir(prefix):
+    for test in os.listdir(prefix):
+        test_dir = os.path.join(prefix, test)
+        test_nodes = set(bench.util.read_node_list(os.path.join(test_dir, 'node_list')))
+        stream_out_path = os.path.join(test_dir, 'stream.out')
         try:
-            with open(os.path.join(prefix, node, 'stream.out')) as fp:
+            with open(stream_out_path) as fp:
                 stream_output = fp.read()
-        except IOError:
+        except IOError as ex:
+            logger.info('unable to read {0}'.format(stream_out_path))
+            logger.debug(ex, exc_info=True)
             continue
         try:
             stream_data = parse_stream(stream_output)
-        except bench.exc.ParseError:
+        except bench.exc.ParseError as ex:
+            logger.warn('unable to parse {0}'.format(stream_out_path))
+            logger.debug(ex, exc_info=True)
             continue
         stream_passed = process_stream(stream_data)
 
         try:
-            with open(os.path.join(prefix, node, 'linpack.out')) as fp:
+            linpack_out_path = os.path.join(test_dir, 'linpack.out')
+            with open(linpack_out_path) as fp:
                 linpack_output = fp.read()
-        except IOError:
+        except IOError as ex:
+            logger.info('unable to read {0}'.format(linpack_out_path))
+            logger.debug(ex, exc_info=True)
             continue
         try:
             linpack_data = parse_linpack(linpack_output)
-        except bench.exc.ParseError:
+        except bench.exc.ParseError as ex:
+            logger.warn('unable to parse {0}'.format(linpack_out_path))
+            logger.debug(ex, exc_info=True)
             continue
         linpack_passed = process_linpack(linpack_data)
 
         if stream_passed and linpack_passed:
-            good_nodes.add(node)
+            logger.info('{0}: pass'.format(test))
+            good_nodes |= test_nodes
         else:
-            bad_nodes.add(node)
+            bad_nodes |= test_nodes
+            if not stream_passed and not linpack_passed:
+                logger.info('{0}: fail (stream, linpack)'.format(test))
+            elif not stream_passed:
+                logger.info('{0}: fail (stream)'.format(test))
+            elif not linpack_passed:
+                logger.info('{0}: fail (linpack)'.format(test))
 
     tested = good_nodes | bad_nodes
     not_tested = set(nodes) - tested
+
     return {
         'not_tested': not_tested,
         'bad_nodes': bad_nodes,

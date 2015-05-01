@@ -1,21 +1,21 @@
 import bench.util
 import bench.tests.node
-import bench.import_tests.import_bandwidth
-import bench.import_tests.import_alltoall
+import bench.tests.bandwidth
+import bench.tests.alltoall
 import hostlist
 import logging
 import os
 
 
-logger = logging.getLogger('Benchmarks')
+logger = logging.getLogger(__name__)
 
 
 PROCESSORS = {
     'node': bench.tests.node.process,
-    'bandwidth': bench.import_tests.import_bandwidth.execute,
-    'alltoall-rack': bench.import_tests.import_alltoall.execute_rack,
-    'alltoall-switch': bench.import_tests.import_alltoall.execute_switch,
-    'alltoall-pair': bench.import_tests.import_alltoall.execute_pair,
+    'bandwidth': bench.tests.bandwidth.process,
+    'alltoall-rack': bench.tests.alltoall.process,
+    'alltoall-switch': bench.tests.alltoall.process,
+    'alltoall-pair': bench.tests.alltoall.process,
 }
 
 
@@ -52,17 +52,17 @@ def execute(prefix,
             process_tests(node_list, prefix, 'node')
 
 
-def process_tests (nodes, prefix, key):
-    prefix_ = os.path.join(prefix, key)
-    results = PROCESSORS[key](nodes, prefix_)
+def process_tests (node_list, prefix, key):
+    prefix_ = os.path.join(prefix, key, 'tests')
+    results = PROCESSORS[key](node_list, prefix_)
     logger.info('{0}: bad nodes: {1} / {2}'.format(
-        key, len(results['bad_nodes']), len(nodes)))
+        key, len(results['bad_nodes']), len(node_list)))
     logger.info('{0}: good nodes: {1} / {2}'.format(
-        key, len(results['good_nodes']), len(nodes)))
+        key, len(results['good_nodes']), len(node_list)))
     logger.info('{0}: untested nodes: {1} / {2}'.format(
-        key, len(results['not_tested']), len(nodes)))
+        key, len(results['not_tested']), len(node_list)))
     write_result_files(
-        prefix_,
+        os.path.join(prefix, key),
         results['good_nodes'],
         results['bad_nodes'],
         results['not_tested'],
