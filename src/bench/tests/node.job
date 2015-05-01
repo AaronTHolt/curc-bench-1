@@ -22,9 +22,7 @@ function main
 {
     module load intel
 
-    $STREAM >stream1.out
-    $STREAM >stream2.out
-    $STREAM >stream3.out
+    $STREAM >stream.out
 
     echo >linpack_input "${LINPACK_INPUT}"
     $LINPACK linpack_input >linpack.out

@@ -5,7 +5,6 @@ import logging
 import os
 import pkg_resources
 import re
-import numpy as np
 
 
 TEMPLATE = jinja2.Template(
@@ -45,28 +44,21 @@ def process(nodes, prefix):
     for test in os.listdir(prefix):
         test_dir = os.path.join(prefix, test)
         test_nodes = set(bench.util.read_node_list(os.path.join(test_dir, 'node_list')))
-        stream_out_path = []
-        stream_data = []
-        stream_out_path.append(os.path.join(test_dir, 'stream1.out'))
-        stream_out_path.append(os.path.join(test_dir, 'stream2.out'))
-        stream_out_path.append(os.path.join(test_dir, 'stream3.out'))
-        for path in stream_out_path:
-            try:
-                with open(path) as fp:
-                    stream_output = fp.read()
-            except IOError as ex:
-                logger.info('unable to read {0}'.format(path))
-                logger.debug(ex, exc_info=True)
-                continue
-            try:
-                stream_data.append(parse_stream(stream_output))
-            except bench.exc.ParseError as ex:
-                logger.warn('unable to parse {0}'.format(path))
-                logger.debug(ex, exc_info=True)
-                continue
-        stream_average_data = list(np.mean(stream_data, 0))
-        print 'STREAM AVERAGE DATA = ', stream_average_data
-        stream_passed = process_stream(stream_average_data)
+        stream_out_path = os.path.join(test_dir, 'stream.out')
+        try:
+            with open(stream_out_path) as fp:
+                stream_output = fp.read()
+        except IOError as ex:
+            logger.info('unable to read {0}'.format(stream_out_path))
+            logger.debug(ex, exc_info=True)
+            continue
+        try:
+            stream_data = parse_stream(stream_output)
+        except bench.exc.ParseError as ex:
+            logger.warn('unable to parse {0}'.format(stream_out_path))
+            logger.debug(ex, exc_info=True)
+            continue
+        stream_passed = process_stream(stream_data)
 
         try:
             linpack_out_path = os.path.join(test_dir, 'linpack.out')
