@@ -1,19 +1,11 @@
-import bench.util.infiniband
+
+import bench.infiniband
 import bench.util
 import jinja2
 import logging
 import os
 import pkg_resources
 
-
-OSU_BW_PERCENT = 20
-
-OSU_BW_LIMITS = {
-    4194304: 3400,
-    1048576: 3400,
-    262144: 3400,
-    65536: 3400,
-}
 
 TEMPLATE = jinja2.Template(
     pkg_resources.resource_string(__name__, 'bandwidth.job'),
@@ -25,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def generate(nodes, topology, prefix):
-    node_pairs = bench.util.infiniband.get_switch_node_pairs(nodes, topology)
+    node_pairs = bench.infiniband.get_switch_node_pairs(nodes, topology)
     for pair_name, node_pair in node_pairs.iteritems():
         test_dir = os.path.join(prefix, pair_name)
         bench.util.mkdir_p(test_dir)
@@ -36,6 +28,7 @@ def generate(nodes, topology, prefix):
                 nodes = node_pair,
             ))
         bench.util.write_node_list(os.path.join(test_dir, 'node_list'), node_pair)
+    logger.info('bandwidth: add: {0}'.format(len(node_pairs)))
 
 
 def process(nodes, prefix):
@@ -44,15 +37,22 @@ def process(nodes, prefix):
     for test in os.listdir(prefix):
         test_dir = os.path.join(prefix, test)
         test_nodes = set(bench.util.read_node_list(os.path.join(test_dir, 'node_list')))
+        
+        osu_bw_out_path = os.path.join(test_dir, 'osu_bw.out')
         try:
-            osu_bw_out_path = os.path.join(test_dir, 'osu_bw.out')
             with open(osu_bw_out_path) as fp:
-                data = parse_osu_bw(fp)
+                try:
+                    data = parse_osu_bw(fp)
+                except ValueError as ex:
+                    logger.info('{0}: fail (malformed osu_bw)'.format(test))
+                    logger.debug(ex, exc_info=True)
+                    bad_nodes |= test_nodes
+                    continue
         except IOError as ex:
-            logger.info('unable to read {0}'.format(osu_bw_out_path))
+            logger.info('{0}: not tested (unable to read {1})'.format(test, osu_bw_out_path))
             logger.debug(ex, exc_info=True)
             continue
-        if evaluate_osu_bw(data):
+        if evaluate_osu_bw(data, test=test):
             logger.info('{0}: pass'.format(test))
             good_nodes |= test_nodes
         else:
@@ -81,9 +81,23 @@ def parse_osu_bw(output):
     return data
 
 
-def evaluate_osu_bw(data):
-    for size, bandwidth in OSU_BW_LIMITS.iteritems():
-        threshold = bandwidth - (OSU_BW_PERCENT * bandwidth)
-        if size not in data or data[size] < threshold:
+def evaluate_osu_bw(
+        data,
+        expected_bandwidths = {
+            4194304: 2720.0,
+            1048576: 2720.0,
+            262144: 2720.0,
+            65536: 2720.0,
+        },
+        test='unknown',
+):
+    for size, bandwidth in expected_bandwidths.iteritems():
+        if size not in data:
+            logger.debug('bandwidth: {0}: {1}: expected {2}, not found'.format(
+                test, size, expected_bandwidths[size]))
+            return False
+        if data[size] < expected_bandwidths[size]:
+            logger.debug('bandwidth: {0}: {1}: expected {2}, found {3}'.format(
+                test, size, expected_bandwidths[size], data[size]))
             return False
     return True

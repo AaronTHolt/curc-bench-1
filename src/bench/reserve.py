@@ -51,7 +51,7 @@ def reserve_nodes (prefix, key, bad_nodes=None, not_tested=None):
     except IOError as ex:
         logger.info('unable to read {0}'.format(bad_nodes_path))
         logger.debug(ex, exc_info=True)
-        bad_nodes = set()
+        bad_nodes_ = set()
 
     not_tested_path = os.path.join(prefix, key, 'not_tested')
     try:
@@ -62,7 +62,7 @@ def reserve_nodes (prefix, key, bad_nodes=None, not_tested=None):
         not_tested_ = set()
 
     # by default, reserve bad_nodes and not_tested
-    if bad_nodes is None and not_tested is None:
+    if not (bad_nodes or not_tested):
         reserve_nodes_ = bad_nodes_ | not_tested_
     else:
         reserve_nodes_ = set()
@@ -72,15 +72,19 @@ def reserve_nodes (prefix, key, bad_nodes=None, not_tested=None):
             reserve_nodes_ |= not_tested_
 
     if reserve_nodes_:
+        reservation_name = 'bench-{0}'.format(key)
         try:
             bench.slurm.scontrol(
                 'create',
-                reservation='bench-{0}'.format(key),
+                reservation=reservation_name,
                 accounts = 'crcbenchmark',
                 flags='overlap',
                 starttime='now',
+                duration='UNLIMITED',
                 nodes=','.join(sorted(reserve_nodes_)),
             )
         except bench.exc.SlurmError as ex:
             logger.error(ex)
             logger.debug(ex, exc_info=True)
+        else:
+            logger.info('{0}: {1}'.format(reservation_name, len(reserve_nodes_)))

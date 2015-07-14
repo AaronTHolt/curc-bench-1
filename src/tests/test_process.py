@@ -24,7 +24,7 @@ class TestProcessExecute (unittest.TestCase):
         self.bad_nodes = set(sorted(self.nodes)[-10:])
         self.assertEqual(len(self.good_nodes & self.bad_nodes), 0)
         self.not_tested = self.nodes - (self.good_nodes | self.bad_nodes)
-        with open(os.path.join(self.directory, 'node_list'), 'w') as fp:
+        with open(os.path.join(self.directory, 'node', 'node_list'), 'w') as fp:
             for node in self.nodes:
                 fp.write('{0}\n'.format(node))
         for node in self.good_nodes:
@@ -42,8 +42,15 @@ class TestProcessExecute (unittest.TestCase):
     def read_node_list (self, path):
         with open(path) as fp:
             return set(fp.read().splitlines())
+
+    def test_missing_node_tests (self):
+        shutil.rmtree(self.prefix)
+        bench.process.execute(self.directory, node_tests=True)
+        assert not os.path.exists(os.path.join(self.prefix, 'good_nodes'))
+        assert not os.path.exists(os.path.join(self.prefix, 'bad_nodes'))
+        assert not os.path.exists(os.path.join(self.prefix, 'not_tested'))
     
-    def test_execute_node_tests (self):
+    def test_node_tests (self):
         bench.process.execute(self.directory, node_tests=True)
         good_nodes = self.read_node_list(
             os.path.join(self.prefix, 'good_nodes'))
@@ -55,7 +62,7 @@ class TestProcessExecute (unittest.TestCase):
         self.assertEqual(bad_nodes, self.bad_nodes)
         self.assertEqual(not_tested, self.not_tested)
     
-    def test_execute_node_tests_missing_stream (self):
+    def test_node_tests_missing_stream (self):
         missing_stream_nodes = set(sorted(self.good_nodes)[:5])
         for node in missing_stream_nodes:
             self._remove_stream(node)
@@ -70,7 +77,7 @@ class TestProcessExecute (unittest.TestCase):
         self.assertEqual(bad_nodes, self.bad_nodes)
         self.assertEqual(not_tested, self.not_tested | missing_stream_nodes)
     
-    def test_execute_node_tests_missing_linpack (self):
+    def test_node_tests_missing_linpack (self):
         missing_linpack_nodes = set(sorted(self.good_nodes)[-5:])
         for node in missing_linpack_nodes:
             self._remove_linpack(node)
@@ -85,7 +92,7 @@ class TestProcessExecute (unittest.TestCase):
         self.assertEqual(bad_nodes, self.bad_nodes)
         self.assertEqual(not_tested, self.not_tested | missing_linpack_nodes)
     
-    def test_execute_node_tests_corrupt_stream (self):
+    def test_node_tests_corrupt_stream (self):
         corrupt_stream_nodes = set(sorted(self.good_nodes)[:5])
         for node in corrupt_stream_nodes:
             self._corrupt_stream(node)
@@ -100,7 +107,7 @@ class TestProcessExecute (unittest.TestCase):
         self.assertEqual(bad_nodes, self.bad_nodes)
         self.assertEqual(not_tested, self.not_tested | corrupt_stream_nodes)
     
-    def test_execute_node_tests_corrupt_linpack (self):
+    def test_node_tests_corrupt_linpack (self):
         corrupt_linpack_nodes = set(sorted(self.good_nodes)[-5:])
         for node in corrupt_linpack_nodes:
             self._corrupt_linpack(node)
@@ -117,7 +124,6 @@ class TestProcessExecute (unittest.TestCase):
 
     def _populate_node_list (self, node):
         bench.util.mkdir_p(os.path.join(self.tests_dir, node))
-        print os.path.join(self.tests_dir, node, 'node_list')
         with open(os.path.join(self.tests_dir, node, 'node_list'), 'w') as fp:
             fp.write('{0}\n'.format(node))
 

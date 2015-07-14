@@ -1,3 +1,4 @@
+import bench.infiniband
 import bench.tests.alltoall
 import bench.tests.bandwidth
 import bench.tests.node
@@ -23,11 +24,22 @@ def execute(prefix, topology_file,
             alltoall_switch_tests=None,
             alltoall_pair_tests=None,
             bandwidth_tests=None,
-            node_tests=None):
-    node_list = bench.util.read_node_list(os.path.join(prefix, 'node_list'))
+            node_tests=None,
+            include_states=None,
+            exclude_states=None,
+            **kwargs
+):
+    if not (include_states or exclude_states):
+        exclude_states = ['down', 'draining', 'drained']
+
+    global_node_list = set(bench.util.read_node_list(os.path.join(prefix, 'node_list')))
+    node_list = bench.util.filter_node_list(global_node_list,
+                                            include_states=include_states,
+                                            exclude_states=exclude_states,
+                                            **kwargs)
 
     if topology_file is not None:
-        topology = bench.util.infiniband.get_topology(topology_file)
+        topology = bench.infiniband.get_topology(topology_file)
     else:
         topology = {}
 
@@ -40,7 +52,7 @@ def execute(prefix, topology_file,
 
     # default to adding *all* tests
     if not add_any_tests_explicitly:
-        for key in PROCESSORS:
+        for key in GENERATORS:
             add_tests(node_list, prefix, key, topology)
     else:
         if alltoall_rack_tests:
@@ -63,3 +75,6 @@ def add_tests (node_list, prefix, key, topology=None):
         GENERATORS[key](node_list, topology, tests_prefix)
     else:
         GENERATORS[key](node_list, tests_prefix)
+    bench.util.write_node_list(
+        os.path.join(prefix, key, 'node_list'),
+        node_list)
