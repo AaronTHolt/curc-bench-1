@@ -200,6 +200,10 @@ def driver():
         )
 
     elif args.command == 'submit':
+        if args.reservation:
+            res = args.reservation
+        else:
+            res = os.environ.get('CURC_RESERVATION')
         bench.submit.execute(
             directory,
             alltoall_rack_tests = args.alltoall_rack_tests,
