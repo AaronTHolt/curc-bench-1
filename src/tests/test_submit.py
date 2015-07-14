@@ -32,11 +32,11 @@ class TestSubmit(unittest.TestCase):
             fp.write('{0}\n'.format(node))
         return test_dir
 
-    def _add_good_node (self, node):
+    def _add_pass_node (self, node):
         with open(os.path.join(self.prefix, 'pass_nodes'), 'a') as fp:
             fp.write('{0}\n'.format(node))
 
-    def _add_bad_node (self, node):
+    def _add_fail_node (self, node):
         with open(os.path.join(self.prefix, 'fail_nodes'), 'a') as fp:
             fp.write('{0}\n'.format(node))
 
@@ -97,8 +97,8 @@ class TestSubmit(unittest.TestCase):
         self._add_test('tnode1')
         self._add_test('tnode2')
         self._add_test('tnode3')
-        self._add_good_node('tnode1')
-        self._add_good_node('tnode3')
+        self._add_pass_node('tnode1')
+        self._add_pass_node('tnode3')
         new_index = bench.submit.submit(self.prefix, pass_nodes=True)
         self.assertEqual(new_index, 2)
         self.assertEqual(len(popen.call_args_list), 2)
@@ -109,7 +109,7 @@ class TestSubmit(unittest.TestCase):
         self._add_test('tnode1')
         self._add_test('tnode2')
         self._add_test('tnode3')
-        self._add_bad_node('tnode2')
+        self._add_fail_node('tnode2')
         new_index = bench.submit.submit(self.prefix, fail_nodes=True)
         self.assertEqual(new_index, 1)
         self.assertEqual(len(popen.call_args_list), 1)
