@@ -28,14 +28,14 @@ def execute(directory, include_states=None, exclude_states=None, **kwargs):
         logger.debug(ex, exc_info=True)
 
     error_nodes_filename = os.path.join(directory, 'error_nodes')
-    error_nodes_nodes = all_nodes - node_list
-    if error_nodes_nodes:
+    error_nodes = all_nodes - node_list
+    if error_nodes:
         logger.warn('error nodes: {0} ({1} nodes)'.format(
-            hostlist.collect_hostlist(error_nodes_nodes),
-            len(error_nodes_nodes),
+            hostlist.collect_hostlist(error_nodes),
+            len(error_nodes),
         ))
     try:
-        bench.util.write_node_list(error_nodes_filename, sorted(error_nodes_nodes))
+        bench.util.write_node_list(error_nodes_filename, sorted(error_nodes))
     except IOError, ex:
         logger.error('unable to write {0}'.format(error_nodes_filename))
         logger.debug(ex, exc_info=True)
