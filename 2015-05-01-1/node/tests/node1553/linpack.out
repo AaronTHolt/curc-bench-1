@@ -1,0 +1,46 @@
+Intel(R) Optimized LINPACK Benchmark data
+
+Current date/time: Fri May  1 12:20:33 2015
+
+CPU frequency:    2.799 GHz
+Number of CPUs: 2
+Number of cores: 12
+Number of threads: 12
+
+Parameters are set to:
+
+Number of tests: 6
+Number of equations to solve (problem size) : 1000  2000  5000  10000 20000 25000
+Leading dimension of array                  : 1000  2000  5000  10000 20000 25000
+Number of trials to run                     : 2     2     2     1     1     1    
+Data alignment value (in Kbytes)            : 4     4     4     4     4     4    
+
+Maximum memory requested that can be used=5000504096, at the size=25000
+
+=================== Timing linear equation system solver ===================
+
+Size   LDA    Align. Time(s)    GFlops   Residual     Residual(norm) Check
+1000   1000   4      0.048      13.9409  1.158133e-12 3.949530e-02   pass
+1000   1000   4      0.029      22.7950  1.158133e-12 3.949530e-02   pass
+2000   2000   4      0.082      65.1214  4.878042e-12 4.243299e-02   pass
+2000   2000   4      0.062      85.8853  4.878042e-12 4.243299e-02   pass
+5000   5000   4      0.803      103.8807 2.221734e-11 3.098029e-02   pass
+5000   5000   4      0.770      108.2264 2.221734e-11 3.098029e-02   pass
+10000  10000  4      5.811      114.7682 9.915883e-11 3.496441e-02   pass
+20000  20000  4      43.237     123.3702 3.949314e-10 3.496008e-02   pass
+25000  25000  4      83.585     124.6387 5.248970e-10 2.984901e-02   pass
+
+Performance Summary (GFlops)
+
+Size   LDA    Align.  Average  Maximal
+1000   1000   4       18.3679  22.7950 
+2000   2000   4       75.5033  85.8853 
+5000   5000   4       106.0536 108.2264
+10000  10000  4       114.7682 114.7682
+20000  20000  4       123.3702 123.3702
+25000  25000  4       124.6387 124.6387
+
+Residual checks PASSED
+
+End of tests
+
